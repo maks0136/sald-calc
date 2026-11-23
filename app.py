@@ -54,6 +54,149 @@ p{line-height:1.7;}
 </style>
 ''', unsafe_allow_html=True)
 
+from contextlib import closing
+import logging
+import os
+from pathlib import Path
+import sqlite3
+
+
+
+COUNTER_PATH = Path(os.getenv("OSV_COUNTER_DB", str(Path(__file__).with_name("osv_counter.sqlite3"))))
+logger = logging.getLogger(__name__)
+
+
+def report_total(*, increment=False):
+    """При increment=True регистрирует один успешно сформированный отчёт."""
+    try:
+        with closing(sqlite3.connect(COUNTER_PATH, timeout=5)) as connection, connection:
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS report_stats (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    total INTEGER NOT NULL
+                )
+            """)
+            if increment:
+                connection.execute("""
+                    INSERT INTO report_stats (id, total) VALUES (1, 1)
+                    ON CONFLICT (id) DO UPDATE SET total = total + 1
+                """)
+            result = connection.execute("SELECT total FROM report_stats WHERE id = 1").fetchone()
+            return result[0] if result else 0
+    except sqlite3.Error:
+        logger.exception("Не удалось прочитать или обновить счётчик OSV CALC")
+        return None
+
+
+def show_background():
+    st.markdown("""<style>
+.stApp { isolation: isolate; }
+.osv-paper-stage {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .osv-floating-paper {
+    position: absolute;
+    box-sizing: border-box;
+    width: calc(clamp(90px, 15vw, 145px) * var(--paper-size, 1));
+    height: calc(clamp(116px, 18vw, 178px) * var(--paper-size, 1));
+    padding: 11px 9px;
+    border: 1px solid light-dark(#8366b268, #c9adf66b);
+    border-radius: 10px;
+    color: light-dark(#695190, #d5bdf7);
+    background: light-dark(#fff7, #b28ce31b);
+    box-shadow: 0 10px 26px light-dark(#65568d24, #120a2570);
+    font-size: 10px;
+    font-weight: 720;
+    letter-spacing: .08em;
+    opacity: var(--paper-opacity, .95);
+    animation: sverka-paper-float var(--paper-duration) ease-in-out infinite alternate;
+  }
+  .osv-floating-paper span {
+    display: block;
+    height: 1px;
+    margin-top: 12px;
+    background: currentColor;
+    opacity: .36;
+  }
+  .osv-floating-paper span:last-child { width: 57%; }
+  .paper-act {
+    left: -10px; top: 20%;
+    --paper-duration: 12s; --tilt-start: -17deg; --tilt-end: -4deg; --rise: -64px; --bend: 15px; --drift: 34px;
+    animation-delay: -3s;
+  }
+  .paper-invoice {
+    right: 0; top: 13%;
+    --paper-duration: 14s; --tilt-start: 9deg; --tilt-end: 22deg; --rise: 63px; --bend: -13px; --drift: 24px;
+    animation-delay: -11s;
+  }
+  .paper-delivery {
+    right: -13px; bottom: -6%;
+    --paper-duration: 11s; --tilt-start: 15deg; --tilt-end: -6deg; --rise: -64px; --bend: -20px; --drift: 12px;
+    animation-delay: -4s;
+  }
+  .paper-payment {
+    left: -15px; top: 47%;
+    --paper-size: .8; --paper-opacity: .68;
+    --paper-duration: 15s; --tilt-start: 12deg; --tilt-end: -18deg; --rise: 58px; --bend: 27px; --drift: -12px;
+    animation-delay: -9s;
+  }
+  .paper-statement {
+    right: -10px; top: 46%;
+    --paper-size: .92; --paper-opacity: .78;
+    --paper-duration: 13s; --tilt-start: -15deg; --tilt-end: 5deg; --rise: -52px; --bend: 16px; --drift: -28px;
+    animation-delay: -8s;
+  }
+  .paper-register {
+    left: 2%; bottom: -12%;
+    --paper-size: .86; --paper-opacity: .88;
+    --paper-duration: 16s; --tilt-start: -20deg; --tilt-end: -3deg; --rise: -74px; --bend: -15px; --drift: 24px;
+    animation-delay: -13s;
+  }
+  .paper-invoice-copy {
+    left: 20%; top: -13%;
+    --paper-size: .75; --paper-opacity: .6;
+    --paper-duration: 13s; --tilt-start: 20deg; --tilt-end: 5deg; --rise: 39px; --bend: 25px; --drift: 68px;
+    animation-delay: -9s;
+  }
+  .paper-act-copy {
+    right: 25%; bottom: -15%;
+    --paper-size: .78; --paper-opacity: .68;
+    --paper-duration: 15s; --tilt-start: -10deg; --tilt-end: 13deg; --rise: -42px; --bend: -17px; --drift: -65px;
+    animation-delay: -7s;
+  }
+  @keyframes sverka-paper-float {
+    from { transform: translate(0, 0) rotate(var(--tilt-start)); }
+    48% { transform: translate(var(--bend), calc(var(--rise) * .52)) rotate(calc(var(--tilt-start) * .6)); }
+    to { transform: translate(var(--drift), var(--rise)) rotate(var(--tilt-end)); }
+  }
+.osv-report-count {
+  display: flex; align-items: baseline; justify-content: flex-end; gap: 8px;
+  padding: 4px 0 8px; color: inherit; font-size: .85rem;
+}
+.osv-report-count strong { color: light-dark(#5746b8, #c6b9ff); font-size: 1.14rem; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  .osv-floating-paper { animation: none; transform: rotate(var(--tilt-start)); }
+}
+</style>
+<div class="osv-paper-stage" aria-hidden="true">
+  <div class="osv-floating-paper paper-act">ОСВ 62.01<span></span><span></span><span></span><span></span></div>
+  <div class="osv-floating-paper paper-invoice">ОСВ 62.02<span></span><span></span><span></span><span></span></div>
+  <div class="osv-floating-paper paper-delivery">ВЕДОМОСТЬ<span></span><span></span><span></span><span></span></div>
+  <div class="osv-floating-paper paper-payment">ДЕБЕТ<span></span><span></span><span></span></div>
+  <div class="osv-floating-paper paper-statement">КРЕДИТ<span></span><span></span><span></span><span></span></div>
+  <div class="osv-floating-paper paper-register">ОТЧЁТ EXCEL<span></span><span></span><span></span><span></span></div>
+  <div class="osv-floating-paper paper-invoice-copy">ОСВ 62.02<span></span><span></span><span></span><span></span></div>
+  <div class="osv-floating-paper paper-act-copy">ОСВ 62.01<span></span><span></span><span></span><span></span></div>
+</div>
+""", unsafe_allow_html=True)
+
+
+show_background()
+
 # ---------- Исходные функции чтения и расчёта (сохранены) ----------
 def detect_account(file):
     try:
@@ -135,14 +278,19 @@ def money(value):
     return f"{value:,.2f}".replace(",", " ").replace(".", ",") + " ₽"
 
 
-# ---------- Шапка ----------
-st.markdown('''
+def show_header(total):
+    count = "—" if total is None else f"{total:,}".replace(",", " ")
+    header_slot.markdown(f'''
 <div class="osv-topbar">
   <div class="osv-brand"><span class="osv-brand-icon">∑</span> OSV CALC</div>
   <div class="osv-top-center">Считаем сальдо. Бережём нервные клетки 😎</div>
-  <div class="osv-top-right">Excel · 62.01 / 62.02</div>
+  <div class="osv-top-right">Ведомостей создано · <strong>{count}</strong></div>
 </div>
 ''', unsafe_allow_html=True)
+
+
+header_slot = st.empty()
+show_header(report_total())
 
 hero_left, hero_right = st.columns([1.5, 1], gap="large", vertical_alignment="center")
 with hero_left:
@@ -156,12 +304,61 @@ with hero_left:
     ''', unsafe_allow_html=True)
 with hero_right:
     st.markdown('''
-    <div class="osv-illustration" aria-hidden="true">
-      <div class="osv-paper one"><div class="osv-paper-title">📄 ОСВ 62.01</div><div class="osv-line"></div><div class="osv-line mid"></div><div class="osv-line short"></div><div class="osv-paper-sum">Дебет конечный</div></div>
-      <div class="osv-paper two"><div class="osv-paper-title">📄 ОСВ 62.02</div><div class="osv-line"></div><div class="osv-line short"></div><div class="osv-line mid"></div><div class="osv-paper-sum">Кредит конечный</div></div>
-      <div class="osv-float">−</div>
-    </div>
-    ''', unsafe_allow_html=True)
+<style>
+  #osv-compact {
+    color:#292446; box-sizing:border-box; padding:clamp(10px,3%,22px);
+    border:1px solid #e5ddfa; border-radius:19px;
+    background:radial-gradient(ellipse at 80% 0%,#e8ddfa,transparent 72%),#f6f3ff;
+    font:14px/1.4 system-ui,sans-serif;
+  }
+  #osv-compact .osv-inputs {
+    display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+    gap:clamp(4px,2%,10px); align-items:center;
+  }
+  #osv-compact .osv-doc {
+    min-width:0; padding:clamp(7px,3%,13px); background:#fff;
+    border:1px solid #e1d8ef; border-radius:11px; box-shadow:0 4px 12px #48306612;
+    animation:osv-doc-glow 6s ease-in-out infinite;
+  }
+  #osv-compact .osv-doc strong { display:block; font-size:clamp(11px,3cqw,15px); }
+  #osv-compact .osv-doc small { display:block; font-size:11px; color:#584c82; }
+  #osv-compact .osv-doc-line { display:block; height:4px; width:72%; margin:6px 0; border-radius:4px; background:#e3daf6; }
+  #osv-compact .osv-credit .osv-doc-line { background:#ccebdd; }
+  #osv-compact .osv-minus { color:#644cc4; font-size:19px; font-weight:750; }
+  #osv-compact .osv-path { position:relative; height:37px; }
+  #osv-compact .osv-path::before {
+    content:""; position:absolute; inset:5px 23% 7px; border:1px solid #d8caef;
+    border-top:0; border-radius:0 0 13px 13px;
+  }
+  #osv-compact .osv-pulse {
+    position:absolute; top:3px; left:var(--from); width:8px; height:8px;
+    background:var(--color); border-radius:50%; opacity:0;
+    animation:osv-transfer-pulse 6s ease-in-out infinite;
+  }
+  #osv-compact .osv-report {
+    display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:3px 9px;
+    margin:0 auto; width:max-content; max-width:100%; box-sizing:border-box; padding:7px 10px;
+    border:1px solid #bae4cf; border-radius:9px; color:#205942; background:#f1fcf6;
+    animation:osv-report-ready 6s ease-in-out infinite;
+  }
+  @keyframes osv-doc-glow { 0%,45%,100%{border-color:#e1d8ef} 20%{border-color:#9d87df} }
+  @keyframes osv-transfer-pulse { 0%,13%{left:var(--from);top:3px;opacity:0} 19%{opacity:1} 44%{left:calc(50% - 4px);top:27px;opacity:1} 53%,100%{left:calc(50% - 4px);top:27px;opacity:0} }
+  @keyframes osv-report-ready { 0%,45%,100%{opacity:0;transform:translateY(3px)} 55%,85%{opacity:1;transform:translateY(0)} 94%{opacity:0;transform:translateY(3px)} }
+  @media (prefers-reduced-motion:reduce) { #osv-compact .osv-doc,#osv-compact .osv-pulse,#osv-compact .osv-report {animation:none} }
+</style>
+<div id="osv-compact" role="img" aria-label="Пример: ОСВ 62.01 и ОСВ 62.02 образуют отчёт Сальдо.xlsx.">
+  <div class="osv-inputs">
+    <div class="osv-doc"><strong>ОСВ 62.01</strong><span class="osv-doc-line"></span><small>Дебет конечный</small></div>
+    <span class="osv-minus" aria-hidden="true">−</span>
+    <div class="osv-doc osv-credit"><strong>ОСВ 62.02</strong><span class="osv-doc-line"></span><small>Кредит конечный</small></div>
+  </div>
+  <div class="osv-path" aria-hidden="true">
+    <span class="osv-pulse" style="--from:23%;--color:#8666d5"></span>
+    <span class="osv-pulse" style="--from:74%;--color:#3ba67d"></span>
+  </div>
+  <div class="osv-report"><strong>✓ Сальдо.xlsx</strong><small>Отчёт готов</small></div>
+</div>
+''', unsafe_allow_html=True)
 
 features = [
     ("📂", "Два файла — один расчёт", "Загружайте ОСВ по счетам 62.01 и 62.02. Всё остальное посчитаем за вас."),
@@ -174,14 +371,18 @@ for col, (ico, title, desc) in zip(cols, features):
         st.markdown(f'<div class="osv-feature"><div class="osv-feature-icon">{ico}</div><div class="osv-feature-title">{title}</div><div class="osv-feature-desc">{desc}</div></div>', unsafe_allow_html=True)
 
 st.markdown('<div class="osv-section-head">Загрузите оборотно-сальдовые ведомости</div><div class="osv-section-sub">Два файла, одна кнопка — и никаких танцев с калькулятором.</div>', unsafe_allow_html=True)
+def reset_report():
+    st.session_state.pop("osv_report", None)
+
+
 col1, col2 = st.columns(2, gap="medium")
 with col1:
-    file_62_01 = st.file_uploader("📁 ОСВ по счёту 62.01 — дебет конечный", type=["xlsx", "xls"], key="62_01")
+    file_62_01 = st.file_uploader("📁 ОСВ по счёту 62.01 — дебет конечный", type=["xlsx", "xls"], key="62_01", on_change=reset_report)
 with col2:
-    file_62_02 = st.file_uploader("📁 ОСВ по счёту 62.02 — кредит конечный", type=["xlsx", "xls"], key="62_02")
+    file_62_02 = st.file_uploader("📁 ОСВ по счёту 62.02 — кредит конечный", type=["xlsx", "xls"], key="62_02", on_change=reset_report)
 
 st.caption("Поддерживаются Excel-файлы .xlsx и .xls. Для старых .xls требуется библиотека xlrd.")
-calculate = st.button("🧮 Рассчитать сальдо", type="primary", use_container_width=True)
+calculate = st.button("🧮 Рассчитать сальдо", type="primary", width="stretch")
 
 if calculate:
     if file_62_01 is None or file_62_02 is None:
@@ -223,46 +424,22 @@ if calculate:
     result = merged[["Контрагент", "Сумма_62.01", "Сумма_62.02", "Результат", "Состояние"]]
     result.columns = ["Контрагент", "62.01_Дт_кон", "62.02_Кт_кон", "Результат", "Состояние"]
 
-    st.success("Готово! Сальдо посчитано. Калькулятор может отдохнуть 😎")
-    st.markdown('<div class="osv-section-head">Результаты расчёта</div><div class="osv-section-sub">Сводка по всем контрагентам — всё самое важное сразу перед глазами.</div>', unsafe_allow_html=True)
-    total_01 = result["62.01_Дт_кон"].sum()
-    total_02 = result["62.02_Кт_кон"].sum()
-    total_res = result["Результат"].sum()
-    a, b, c = st.columns(3, gap="medium")
-    a.metric("62.01 · Дебет конечный", money(total_01))
-    b.metric("62.02 · Кредит конечный", money(total_02))
-    c.metric("Итоговое сальдо", money(total_res))
-
-    st.markdown("#### 📋 Расчёт по контрагентам")
-    st.dataframe(
-        result.style.format({"62.01_Дт_кон": "{:,.2f}", "62.02_Кт_кон": "{:,.2f}", "Результат": "{:,.2f}"}),
-        use_container_width=True,
-        height=420,
-        hide_index=True,
-    )
-
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         result.to_excel(writer, index=False, sheet_name="Результат")
-    output.seek(0)
+    st.session_state["osv_report"] = output.getvalue()
+    show_header(report_total(increment=True))
+
+if report := st.session_state.get("osv_report"):
+    st.success("Отчёт готов")
     st.download_button(
-        label="📥 Забрать результат в Excel",
-        data=output,
+        label="Скачать Excel",
+        data=report,
         file_name="result_62.01_minus_62.02.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True,
+        on_click="ignore",
+        width="stretch",
     )
-
-    with st.expander("🔎 Посмотреть исходные данные из каждого файла"):
-        left, right = st.columns(2)
-        with left:
-            st.markdown("**62.01 — Дт конечный**")
-            st.caption(f"Контрагентов: {len(df_01)} · Итого: {money(df_01['Сумма'].sum())}")
-            st.dataframe(df_01.style.format({"Сумма": "{:,.2f}"}), use_container_width=True, height=300, hide_index=True)
-        with right:
-            st.markdown("**62.02 — Кт конечный**")
-            st.caption(f"Контрагентов: {len(df_02)} · Итого: {money(df_02['Сумма'].sum())}")
-            st.dataframe(df_02.style.format({"Сумма": "{:,.2f}"}), use_container_width=True, height=300, hide_index=True)
 
 st.markdown('''
 <div class="osv-foot">
