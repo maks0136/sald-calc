@@ -8,8 +8,10 @@ st.markdown('''
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 html,body,[class*="css"],.stApp {font-family:'Manrope',sans-serif;}
-html, body, #root { min-height: 100%; background-color: #f5f6ff; }
-.stApp {min-height:100vh;min-height:100dvh;background: radial-gradient(ellipse 50% 28% at 10% 5%,rgba(165,197,255,.40),transparent 75%),radial-gradient(ellipse 45% 35% at 95% 12%,rgba(205,180,255,.37),transparent 75%),linear-gradient(135deg,#f8fbff 0%,#f8f7ff 49%,#f4faff 100%);color:#27304a;}
+html, body, #root { height: 100%; margin: 0; overflow: hidden; background-color: #f5f6ff; }
+[data-testid="stApp"], [data-testid="stAppViewContainer"] { min-height: 0; overflow: hidden; }
+[data-testid="stMain"] { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
+.stApp {background: radial-gradient(ellipse 50% 28% at 10% 5%,rgba(165,197,255,.40),transparent 75%),radial-gradient(ellipse 45% 35% at 95% 12%,rgba(205,180,255,.37),transparent 75%),linear-gradient(135deg,#f8fbff 0%,#f8f7ff 49%,#f4faff 100%);color:#27304a;}
 [data-testid="stHeader"]{background:transparent;}
 .block-container{max-width:1150px;padding-top:1.3rem;padding-bottom:2rem;}
 h1,h2,h3{color:#232944!important;letter-spacing:-.035em;}
