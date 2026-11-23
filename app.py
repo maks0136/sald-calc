@@ -8,7 +8,8 @@ st.markdown('''
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 html,body,[class*="css"],.stApp {font-family:'Manrope',sans-serif;}
-.stApp {background: radial-gradient(ellipse 50% 28% at 10% 5%,rgba(165,197,255,.40),transparent 75%),radial-gradient(ellipse 45% 35% at 95% 12%,rgba(205,180,255,.37),transparent 75%),linear-gradient(135deg,#f8fbff 0%,#f8f7ff 49%,#f4faff 100%);color:#27304a;}
+html, body, #root { min-height: 100%; background-color: #f5f6ff; }
+.stApp {min-height:100vh;min-height:100dvh;background: radial-gradient(ellipse 50% 28% at 10% 5%,rgba(165,197,255,.40),transparent 75%),radial-gradient(ellipse 45% 35% at 95% 12%,rgba(205,180,255,.37),transparent 75%),linear-gradient(135deg,#f8fbff 0%,#f8f7ff 49%,#f4faff 100%);color:#27304a;}
 [data-testid="stHeader"]{background:transparent;}
 .block-container{max-width:1150px;padding-top:1.3rem;padding-bottom:2rem;}
 h1,h2,h3{color:#232944!important;letter-spacing:-.035em;}
@@ -384,10 +385,10 @@ with col2:
 st.caption("Поддерживаются Excel-файлы .xlsx и .xls. Для старых .xls требуется библиотека xlrd.")
 calculate = st.button("🧮 Рассчитать сальдо", type="primary", width="stretch")
 
-if calculate:
+def calculate_report():
     if file_62_01 is None or file_62_02 is None:
         st.warning("Сначала загрузите оба файла. Даже бухгалтерская магия без них бессильна 🙂")
-        st.stop()
+        return
 
     account1 = detect_account(file_62_01)
     account2 = detect_account(file_62_02)
@@ -397,17 +398,17 @@ if calculate:
             f"Загрузите **62.01** в левое поле, а **62.02** — в правое.\n"
             f"Сейчас: первый файл — **{account1 or 'неизвестно'}**, второй — **{account2 or 'неизвестно'}**."
         )
-        st.stop()
+        return
 
     with st.spinner("Считаем сальдо и ищем, кто кому должен…"):
         df_01 = parse_osv(file_62_01, sum_col_index=5, account_name="62.01")
         df_02 = parse_osv(file_62_02, sum_col_index=6, account_name="62.02")
 
     if df_01 is None or df_02 is None:
-        st.stop()
+        return
     if df_01.empty or df_02.empty:
         st.warning("Один из файлов не содержит данных. Проверьте структуру.")
-        st.stop()
+        return
 
     merged = pd.merge(df_01, df_02, on="Контрагент", how="outer", suffixes=("_62.01", "_62.02"))
     merged.fillna(0, inplace=True)
@@ -429,6 +430,10 @@ if calculate:
         result.to_excel(writer, index=False, sheet_name="Результат")
     st.session_state["osv_report"] = output.getvalue()
     show_header(report_total(increment=True))
+
+
+if calculate:
+    calculate_report()
 
 if report := st.session_state.get("osv_report"):
     st.success("Отчёт готов")
